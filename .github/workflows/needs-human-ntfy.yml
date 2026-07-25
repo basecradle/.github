@@ -1,0 +1,33 @@
+name: Needs-Human ntfy Alert
+
+on:
+  workflow_call:
+    secrets:
+      NTFY_TOKEN:
+        description: ntfy.sh access token used to publish to the fleet topic
+        required: true
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Publish to ntfy
+        env:
+          NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
+          REPO: ${{ github.event.repository.name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          printf '%s\n#%s %s' "$REPO" "$ISSUE_NUMBER" "$ISSUE_TITLE" \
+            | curl -sf --retry 3 --max-time 15 \
+                -H "Authorization: Bearer $NTFY_TOKEN" \
+                -H "Title: GitHub Needs Human" \
+                -H "Priority: 5" \
+                -H "Tags: rotating_light" \
+                -H "Click: $ISSUE_URL" \
+                --data-binary @- \
+                https://ntfy.sh/BaseCradle-GitHub
