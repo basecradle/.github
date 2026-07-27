@@ -21,26 +21,30 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Fail-closed: auto-merge ONLY on an explicit patch or minor verdict. A
+      # major, a null/empty update-type (fetch-metadata has had ecosystems
+      # resolve null), or any future value routes to the capital instead.
       - name: Enable auto-merge for patch and minor updates
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR_URL"
 
-      - name: Label major updates for capital routing
-        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+      - name: Label non-patch/minor updates for capital routing
+        if: "!contains(fromJSON('[\"version-update:semver-patch\", \"version-update:semver-minor\"]'), steps.metadata.outputs.update-type)"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr edit "$PR_URL" --add-label needs-capital
 
-      - name: Comment on major updates
-        if: steps.metadata.outputs.update-type == 'version-update:semver-major' && github.event.action == 'opened'
+      - name: Comment on non-patch/minor updates
+        if: "!contains(fromJSON('[\"version-update:semver-patch\", \"version-update:semver-minor\"]'), steps.metadata.outputs.update-type) && github.event.action == 'opened'"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: >
           gh pr comment "$PR_URL" --body
-          "Major version update — not auto-merged. Labeled \`needs-capital\`;
-          the capital routes this one."
+          "Not auto-merged: the update-type is not an explicit patch or minor
+          (major, or unresolved metadata). Labeled \`needs-capital\`; the
+          capital routes this one."
