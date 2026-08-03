@@ -31,8 +31,13 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR_URL"
 
+      # Label ONLY on `opened`, matching the comment step below — the two are one
+      # atomic pair (every routing-label application rides its comment; shared law,
+      # Cross-Repo Handoffs live-protocol items 7-9). Without this gate a Dependabot
+      # rebase (`synchronize`) re-applied the label BARE and silently overrode a
+      # capital clearing (basecradle-harness#363, caught by the noc#401 guard).
       - name: Label non-patch/minor updates for capital routing
-        if: "!contains(fromJSON('[\"version-update:semver-patch\", \"version-update:semver-minor\"]'), steps.metadata.outputs.update-type)"
+        if: "!contains(fromJSON('[\"version-update:semver-patch\", \"version-update:semver-minor\"]'), steps.metadata.outputs.update-type) && github.event.action == 'opened'"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
