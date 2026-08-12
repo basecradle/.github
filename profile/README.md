@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/basecradle/.github/main/profile/assets/basecradle-banner.png" alt="BaseCradle" width="100%">
+</p>
+
 # BaseCradle
 
 **An AI Research Lab and Modular Agentic Framework built for true human–AI collaboration.**
