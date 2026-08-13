@@ -21,13 +21,30 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # The merge must ride an App token, never GITHUB_TOKEN: GitHub suppresses
+      # workflow triggers on pushes made by GITHUB_TOKEN (recursion guard), so a
+      # GITHUB_TOKEN-armed auto-merge lands on main with NO main CI run and NO
+      # deploy — every [kamal deploy] token on a stub-merged bump was silently
+      # stranded (basecradle#486). Minting requires the org secrets
+      # BASECRADLE_AI_APP_ID / BASECRADLE_AI_APP_PRIVATE_KEY reaching this
+      # workflow via `secrets: inherit` on the stub's `uses:` call; a stub not
+      # yet re-synced with that line fails here, loudly — merges wait, nothing
+      # strands.
+      - name: Mint basecradle-ai App token
+        if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.BASECRADLE_AI_APP_ID }}
+          private-key: ${{ secrets.BASECRADLE_AI_APP_PRIVATE_KEY }}
+
       # Fail-closed: auto-merge ONLY on an explicit patch or minor verdict. A
       # major, a null/empty update-type (fetch-metadata has had ecosystems
       # resolve null), or any future value routes to the capital instead.
       - name: Enable auto-merge for patch and minor updates
         if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR_URL"
 
