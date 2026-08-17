@@ -27,9 +27,12 @@ jobs:
       # deploy — every [kamal deploy] token on a stub-merged bump was silently
       # stranded (basecradle#486). Minting requires the org secrets
       # BASECRADLE_AI_APP_ID / BASECRADLE_AI_APP_PRIVATE_KEY reaching this
-      # workflow via `secrets: inherit` on the stub's `uses:` call; a stub not
-      # yet re-synced with that line fails here, loudly — merges wait, nothing
-      # strands.
+      # workflow via `secrets: inherit` on the stub's `uses:` call — AND, because
+      # Dependabot-triggered runs read ONLY the org DEPENDABOT secrets store
+      # (never the Actions store), both secrets must exist there too; a key
+      # rotation must update BOTH stores. A stub not yet re-synced with the
+      # inherit line, or a store missing a secret, fails here, loudly — merges
+      # wait, nothing strands.
       - name: Mint basecradle-ai App token
         if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
         id: app-token
