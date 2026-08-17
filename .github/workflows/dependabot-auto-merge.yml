@@ -33,7 +33,7 @@ jobs:
       - name: Mint basecradle-ai App token
         if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.BASECRADLE_AI_APP_ID }}
           private-key: ${{ secrets.BASECRADLE_AI_APP_PRIVATE_KEY }}
