@@ -22,12 +22,19 @@ jobs:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
         run: |
-          printf '%s\n#%s %s' "$REPO" "$ISSUE_NUMBER" "$ISSUE_TITLE" \
-            | curl -sf --retry 3 --max-time 15 \
-                -H "Authorization: Bearer $NTFY_TOKEN" \
-                -H "Title: GitHub Needs Human" \
-                -H "Priority: 5" \
-                -H "Tags: rotating_light" \
-                -H "Click: $ISSUE_URL" \
-                --data-binary @- \
-                https://ntfy.sh/BaseCradle-GitHub
+          # The token never rides curl's argv (visible to every reader of the process table for the
+          # call's lifetime) and never prints under a traced shell: xtrace off first, then the headers
+          # go to curl through `--config -` on stdin and the body through a 0600 file (basecradle#774,
+          # the shape basecradle-noc#1310 gave the heartbeat URL).
+          set +x
+          umask 077
+          printf '%s\n#%s %s' "$REPO" "$ISSUE_NUMBER" "$ISSUE_TITLE" > ntfy-body.txt
+          curl -sf --retry 3 --max-time 15 --config - https://ntfy.sh/BaseCradle-GitHub <<CURLCFG
+          header = "Authorization: Bearer $NTFY_TOKEN"
+          header = "Title: GitHub Needs Human"
+          header = "Priority: 5"
+          header = "Tags: rotating_light"
+          header = "Click: $ISSUE_URL"
+          data-binary = "@ntfy-body.txt"
+          CURLCFG
+          rm -f ntfy-body.txt
