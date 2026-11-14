@@ -26,7 +26,7 @@ jobs:
       # GITHUB_TOKEN-armed auto-merge lands on main with NO main CI run and NO
       # deploy — every [kamal deploy] token on a stub-merged bump was silently
       # stranded (basecradle#486). Minting requires the org secrets
-      # BASECRADLE_AI_APP_ID / BASECRADLE_AI_APP_PRIVATE_KEY reaching this
+      # BASECRADLE_AI_CLIENT_ID / BASECRADLE_AI_APP_PRIVATE_KEY reaching this
       # workflow via `secrets: inherit` on the stub's `uses:` call — AND, because
       # Dependabot-triggered runs read ONLY the org DEPENDABOT secrets store
       # (never the Actions store), both secrets must exist there too; a key
@@ -38,7 +38,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.BASECRADLE_AI_APP_ID }}
+          client-id: ${{ secrets.BASECRADLE_AI_CLIENT_ID }}
           private-key: ${{ secrets.BASECRADLE_AI_APP_PRIVATE_KEY }}
 
       # Fail-closed: auto-merge ONLY on an explicit patch or minor verdict. A
