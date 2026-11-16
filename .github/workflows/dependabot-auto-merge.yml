@@ -38,13 +38,20 @@ jobs:
       # rotation must update BOTH stores. A stub not yet re-synced with the
       # inherit line, or a store missing a secret, fails here, loudly — merges
       # wait, nothing strands.
-      - name: Mint basecradle-ai App token
+      # WHOSE TOKEN (basecradle#870): the calling repository's OWN bot. Every repository
+      # sets FLEET_BOT_CLIENT_ID and FLEET_BOT_APP_PRIVATE_KEY (Actions AND Dependabot
+      # stores) to its captain's App; the capital's two repositories set the capital's.
+      # So the merge is armed by the App that may update that repository's main, and the
+      # capital's key is needed in no builder repository. The `|| secrets.BASECRADLE_AI_*`
+      # fallback is a bridge for a repository whose FLEET_BOT_* pair is not placed yet;
+      # it is removed in the same change that deletes the organization-level copies.
+      - name: Mint this repository's bot token
         if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BASECRADLE_AI_CLIENT_ID }}
-          private-key: ${{ secrets.BASECRADLE_AI_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.FLEET_BOT_CLIENT_ID || secrets.BASECRADLE_AI_CLIENT_ID }}
+          private-key: ${{ secrets.FLEET_BOT_APP_PRIVATE_KEY || secrets.BASECRADLE_AI_APP_PRIVATE_KEY }}
 
       # Fail-closed: auto-merge ONLY on an explicit patch or minor verdict. A
       # major, a null/empty update-type (fetch-metadata has had ecosystems
