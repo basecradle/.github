@@ -38,6 +38,51 @@ jobs:
       # rotation must update BOTH stores. A stub not yet re-synced with the
       # inherit line, or a store missing a secret, fails here, loudly — merges
       # wait, nothing strands.
+      # ONE VERDICT, read by every step below. Auto-merge needs BOTH: an explicit patch
+      # or minor update-type (fail-closed, as before: a major, a null or any future value
+      # routes to the capital), AND that the update is not on a publish path. A publish-path
+      # update moves an action, or a build tool named here, in a repository that publishes:
+      # CI never runs the publish job, so a green CI says nothing about it, and it would run
+      # with publish credentials at the next release (basecradle#874, @origin 2026-11-16).
+      # It is read by the capital instead. TRIAL: one repository for a week, then the list
+      # below becomes every repository. The names are compared as data, never evaluated.
+      - name: "Decide: merge automatically, or route to the capital"
+        id: verdict
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          publish_path_repositories="basecradle/basecradle-python"
+          publish_path_build_tools="hatchling"
+          auto=false
+          reason="the update-type is not an explicit patch or minor (major, or unresolved metadata)"
+          case "$UPDATE_TYPE" in
+            version-update:semver-patch|version-update:semver-minor) auto=true; reason="" ;;
+          esac
+          on_publish_path=false
+          for repository in $publish_path_repositories; do
+            [ "$REPOSITORY" = "$repository" ] || continue
+            case "$ECOSYSTEM" in
+              github_actions|github-actions) on_publish_path=true ;;
+            esac
+            IFS=', ' read -r -a names <<< "$DEPENDENCY_NAMES"
+            for name in "${names[@]}"; do
+              for tool in $publish_path_build_tools; do
+                [ "$name" = "$tool" ] && on_publish_path=true
+              done
+            done
+          done
+          if [ "$on_publish_path" = true ]; then
+            auto=false
+            reason="it moves an action or a build tool on this repository's publish path, which CI does not exercise"
+          fi
+          echo "auto=$auto" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          echo "verdict: auto=$auto ecosystem=$ECOSYSTEM update-type=$UPDATE_TYPE ${reason:+($reason)}"
+
       # WHOSE TOKEN (basecradle#870): the calling repository's OWN bot. Every repository
       # sets FLEET_BOT_CLIENT_ID and FLEET_BOT_APP_PRIVATE_KEY (Actions AND Dependabot
       # stores) to its captain's App; the capital's two repositories set the capital's.
@@ -46,7 +91,7 @@ jobs:
       # fallback is a bridge for a repository whose FLEET_BOT_* pair is not placed yet;
       # it is removed in the same change that deletes the organization-level copies.
       - name: Mint this repository's bot token
-        if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
+        if: steps.verdict.outputs.auto == 'true'
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
@@ -56,8 +101,8 @@ jobs:
       # Fail-closed: auto-merge ONLY on an explicit patch or minor verdict. A
       # major, a null/empty update-type (fetch-metadata has had ecosystems
       # resolve null), or any future value routes to the capital instead.
-      - name: Enable auto-merge for patch and minor updates
-        if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
+      - name: Enable auto-merge
+        if: steps.verdict.outputs.auto == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -68,20 +113,18 @@ jobs:
       # Cross-Repo Handoffs live-protocol items 7-9). Without this gate a Dependabot
       # rebase (`synchronize`) re-applied the label BARE and silently overrode a
       # capital clearing (basecradle-harness#363, caught by the noc#401 guard).
-      - name: Label non-patch/minor updates for capital routing
-        if: "!contains(fromJSON('[\"version-update:semver-patch\", \"version-update:semver-minor\"]'), steps.metadata.outputs.update-type) && github.event.action == 'opened'"
+      - name: Label what is not auto-merged for capital routing
+        if: steps.verdict.outputs.auto != 'true' && github.event.action == 'opened'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr edit "$PR_URL" --add-label needs-capital
 
-      - name: Comment on non-patch/minor updates
-        if: "!contains(fromJSON('[\"version-update:semver-patch\", \"version-update:semver-minor\"]'), steps.metadata.outputs.update-type) && github.event.action == 'opened'"
+      - name: Comment on what is not auto-merged
+        if: steps.verdict.outputs.auto != 'true' && github.event.action == 'opened'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: >
-          gh pr comment "$PR_URL" --body
-          "Not auto-merged: the update-type is not an explicit patch or minor
-          (major, or unresolved metadata). Labeled \`needs-capital\`; the
-          capital routes this one."
+          REASON: ${{ steps.verdict.outputs.reason }}
+        run: |
+          gh pr comment "$PR_URL" --body "Not auto-merged: $REASON. Labeled \`needs-capital\`; the capital routes this one."
