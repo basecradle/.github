@@ -15,9 +15,14 @@ jobs:
       issues: write
 
     steps:
+      # Both third-party actions below are pinned to a full commit SHA, never a
+      # tag: this job holds the capital's App key on every Dependabot pull request
+      # in the fleet, and a tag is a ref its owner can move (basecradle#869). A
+      # bump here is read by the capital before it merges; this repository has no
+      # auto-merge.
       - name: Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -36,7 +41,7 @@ jobs:
       - name: Mint basecradle-ai App token
         if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BASECRADLE_AI_CLIENT_ID }}
           private-key: ${{ secrets.BASECRADLE_AI_APP_PRIVATE_KEY }}
