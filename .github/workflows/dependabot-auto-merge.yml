@@ -16,8 +16,8 @@ jobs:
 
     steps:
       # Both third-party actions below are pinned to a full commit SHA, never a
-      # tag: this job holds the capital's App key on every Dependabot pull request
-      # in the fleet, and a tag is a ref its owner can move (basecradle#869). A
+      # tag: this job holds the calling repository's bot key on every Dependabot
+      # pull request in the fleet, and a tag is a ref its owner can move (basecradle#869). A
       # bump here is read by the capital before it merges; this repository has no
       # auto-merge.
       - name: Fetch Dependabot metadata
@@ -30,14 +30,13 @@ jobs:
       # workflow triggers on pushes made by GITHUB_TOKEN (recursion guard), so a
       # GITHUB_TOKEN-armed auto-merge lands on main with NO main CI run and NO
       # deploy — every [kamal deploy] token on a stub-merged bump was silently
-      # stranded (basecradle#486). Minting requires the org secrets
-      # BASECRADLE_AI_CLIENT_ID / BASECRADLE_AI_APP_PRIVATE_KEY reaching this
-      # workflow via `secrets: inherit` on the stub's `uses:` call — AND, because
-      # Dependabot-triggered runs read ONLY the org DEPENDABOT secrets store
-      # (never the Actions store), both secrets must exist there too; a key
-      # rotation must update BOTH stores. A stub not yet re-synced with the
-      # inherit line, or a store missing a secret, fails here, loudly — merges
-      # wait, nothing strands.
+      # stranded (basecradle#486). Minting requires the calling repository's own
+      # FLEET_BOT_CLIENT_ID / FLEET_BOT_APP_PRIVATE_KEY reaching this workflow via
+      # `secrets: inherit` on the stub's `uses:` call. They are REPOSITORY secrets
+      # (no organization copy exists: basecradle#870), and because
+      # Dependabot-triggered runs read ONLY a repository's DEPENDABOT secrets
+      # store (never its Actions store), the pair must be in both; a key rotation
+      # updates both stores of that one repository.
       # ONE VERDICT, read by every step below. Auto-merge needs BOTH: an explicit patch
       # or minor update-type (fail-closed, as before: a major, a null or any future value
       # routes to the capital), AND that the update is not on a publish path. A publish-path
@@ -94,16 +93,15 @@ jobs:
       # sets FLEET_BOT_CLIENT_ID and FLEET_BOT_APP_PRIVATE_KEY (Actions AND Dependabot
       # stores) to its captain's App; the capital's two repositories set the capital's.
       # So the merge is armed by the App that may update that repository's main, and the
-      # capital's key is needed in no builder repository. The `|| secrets.BASECRADLE_AI_*`
-      # fallback is a bridge for a repository whose FLEET_BOT_* pair is not placed yet;
-      # it is removed in the same change that deletes the organization-level copies.
+      # capital's key is needed in no builder repository. A repository without the pair
+      # fails here, loudly: merges wait, nothing strands.
       - name: Mint this repository's bot token
         if: steps.verdict.outputs.auto == 'true'
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.FLEET_BOT_CLIENT_ID || secrets.BASECRADLE_AI_CLIENT_ID }}
-          private-key: ${{ secrets.FLEET_BOT_APP_PRIVATE_KEY || secrets.BASECRADLE_AI_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.FLEET_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.FLEET_BOT_APP_PRIVATE_KEY }}
 
       # Fail-closed: auto-merge ONLY on an explicit patch or minor verdict. A
       # major, a null/empty update-type (fetch-metadata has had ecosystems
