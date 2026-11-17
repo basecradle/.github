@@ -40,25 +40,21 @@ jobs:
       # ONE VERDICT, read by every step below. Auto-merge needs BOTH: an explicit patch
       # or minor update-type (fail-closed, as before: a major, a null or any future value
       # routes to the capital), AND that the update is not on a publish path. A publish-path
-      # update moves an action, or a build tool named here, in a repository that publishes:
+      # update moves an action, or a build tool its repository names, in a repository that publishes:
       # CI never runs the publish job, so a green CI says nothing about it, and it would run
       # with publish credentials at the next release (basecradle#874, @origin 2026-11-16).
       # It is read by the capital instead. TRIAL: one repository for a week, then the list
       # below becomes every repository. The names are compared as data, never evaluated.
-      # `publish_path_build_tools` is a stopgap by name until each trial repository declares
-      # its `publish-path` group; it goes when the trial repository's group is in place.
       - name: "Decide: merge automatically, or route to the capital"
         id: verdict
         env:
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
           ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
-          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
           DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           publish_path_repositories="basecradle/basecradle-python"
-          publish_path_build_tools="hatchling"
           auto=false
           reason="the update-type is not an explicit patch or minor (major, or unresolved metadata)"
           case "$UPDATE_TYPE" in
@@ -74,12 +70,6 @@ jobs:
             # `publish-path` in its own dependabot.yml (its build tools and their closure).
             # The policy lives here, the list lives with the repository that knows it.
             [ "$DEPENDENCY_GROUP" = "publish-path" ] && on_publish_path=true
-            IFS=', ' read -r -a names <<< "$DEPENDENCY_NAMES"
-            for name in "${names[@]}"; do
-              for tool in $publish_path_build_tools; do
-                [ "$name" = "$tool" ] && on_publish_path=true
-              done
-            done
           done
           if [ "$on_publish_path" = true ]; then
             auto=false
