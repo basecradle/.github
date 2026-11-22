@@ -40,40 +40,36 @@ jobs:
       # ONE VERDICT, read by every step below. Auto-merge needs BOTH: an explicit patch
       # or minor update-type (fail-closed, as before: a major, a null or any future value
       # routes to the capital), AND that the update is not on a publish path. A publish-path
-      # update moves an action, or a build tool its repository names, in a repository that publishes:
-      # CI never runs the publish job, so a green CI says nothing about it, and it would run
-      # with publish credentials at the next release (basecradle#874, @origin 2026-11-16).
-      # It is read by the capital instead. TRIAL: one repository for a week, then the list
-      # below becomes every repository. The names are compared as data, never evaluated.
+      # update moves an action (which runs in jobs that hold a credential), or a build tool its
+      # repository names: CI never exercises a publish job or a credential-holding step, so a
+      # green CI says nothing about it (basecradle#874, @origin 2026-11-16).
+      # It is read by the capital instead. EVERY repository (@origin, 2026-11-22, after a
+      # week's trial on one): no list of repositories, so a new repository is covered the day
+      # it carries the stub. The values are compared as data, never evaluated.
       - name: "Decide: merge automatically, or route to the capital"
         id: verdict
         env:
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
           ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
           DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          publish_path_repositories="basecradle/basecradle-python"
           auto=false
           reason="the update-type is not an explicit patch or minor (major, or unresolved metadata)"
           case "$UPDATE_TYPE" in
             version-update:semver-patch|version-update:semver-minor) auto=true; reason="" ;;
           esac
           on_publish_path=false
-          for repository in $publish_path_repositories; do
-            [ "$REPOSITORY" = "$repository" ] || continue
-            case "$ECOSYSTEM" in
-              github_actions|github-actions) on_publish_path=true ;;
-            esac
-            # The repository says what else is on its publish path: a Dependabot group named
-            # `publish-path` in its own dependabot.yml (its build tools and their closure).
-            # The policy lives here, the list lives with the repository that knows it.
-            [ "$DEPENDENCY_GROUP" = "publish-path" ] && on_publish_path=true
-          done
+          case "$ECOSYSTEM" in
+            github_actions|github-actions) on_publish_path=true ;;
+          esac
+          # The repository says what else is on its publish path: a Dependabot group named
+          # `publish-path` in its own dependabot.yml (its build tools and their closure).
+          # The policy lives here, the list lives with the repository that knows it.
+          if [ "$DEPENDENCY_GROUP" = "publish-path" ]; then on_publish_path=true; fi
           if [ "$on_publish_path" = true ]; then
             auto=false
-            reason="it moves an action or a build tool on this repository's publish path, which CI does not exercise"
+            reason="it moves an action, or a build tool on this repository's publish path, which CI does not exercise"
           fi
           echo "auto=$auto" >> "$GITHUB_OUTPUT"
           echo "reason=$reason" >> "$GITHUB_OUTPUT"
